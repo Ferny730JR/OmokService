@@ -41,6 +41,7 @@ class SmartStrategy extends MoveStrategy {
             '00220'=> -500
         ];
     }
+
     public function pickPlace() {
         /* Check if center is taken, otherwise take move next to center */
         if($this->board->movesMade() === 1) {
@@ -62,57 +63,61 @@ class SmartStrategy extends MoveStrategy {
 
             /* Make the move and calculate the weight of the move */
             $this->board->makeMove($move[0], $move[1], COMPUTER);
-            $moveEval = $this->minimax($this->board, 2, PLAYER);
+            $moveEval = $this->minimax($this->board, 2, PHP_INT_MIN, PHP_INT_MAX, PLAYER);
             $this->board->undoMove($move[0], $move[1]);
 
             /* Computer, so try to minimize the evaluation */
-            echo nl2br("move: ($move[0], $move[1]) = $moveEval\n");
             if($moveEval <= $bestEval) {
                 $bestMove = [$move[0], $move[1]];
                 $bestEval = $moveEval;
             }
         }
 
-        echo nl2br("Best move: ($bestMove[0], $bestMove[1])\n");
         $this->board->makeMove($bestMove[0], $bestMove[1], COMPUTER);
         return array('x' => $bestMove[0], 'y' => $bestMove[1]);
     }
 
-    private function minimax($board, $depth, $player) {
-        $eval = $this->evaluate($board);
-        if($depth === 0 || $board->isFull() || $eval >= 29000000 || $eval <= -29000000) {
+    private function minimax($board, $depth, $alpha, $beta, $player) {
+        if($depth === 0 || $board->isFull()){ //|| $eval >= 29000000 || $eval <= -29000000) {
+            $eval = $this->evaluate();
             return $eval;
         }
 
         if($player === PLAYER) {
-            return $this->getMax($board, $depth);
+            return $this->getMax($board, $depth, $alpha, $beta);
 
         /* Computer turn */
         } else {
-            return $this->getMin($board, $depth);
+            return $this->getMin($board, $depth, $alpha, $beta);
         }
     }
 
-    private function getMax($board, $depth) {
+    private function getMax($board, $depth, $alpha, $beta) {
         $maxEval = PHP_INT_MIN;
-        foreach($this->board->adjacentMoves() as $move) {
+        foreach($this->bestMoves(PLAYER) as $move) {
             $this->board->makeMove($move[0], $move[1], PLAYER);
-            $curEval = $this->minimax($board, $depth - 1, COMPUTER);
+            $curEval = $this->minimax($board, $depth - 1, $alpha, $beta, COMPUTER);
             $this->board->undoMove($move[0], $move[1]);
-            // echo "\t" . nl2br("P: ($move[0], $move[1]) = $curEval\n");
-            $maxEval = max($curEval, $maxEval);
+            $maxEval = max($maxEval, $curEval);
+            $alpha = max($alpha, $curEval);
+            if($beta <= $alpha) {
+                break;
+            }
         }
         return $maxEval;
     }
 
-    private function getMin($board, $depth) {
+    private function getMin($board, $depth, $alpha, $beta) {
         $minEval = PHP_INT_MAX;
-        foreach($this->board->adjacentMoves() as $move) {
+        foreach($this->bestMoves(COMPUTER) as $move) {
             $this->board->makeMove($move[0], $move[1], COMPUTER);
-            $curEval = $this->minimax($board, $depth - 1, PLAYER);
+            $curEval = $this->minimax($board, $depth - 1, $alpha, $beta, PLAYER);
             $this->board->undoMove($move[0], $move[1]);
-            // echo "\t" . nl2br("C: ($move[0], $move[1]) = $curEval\n");
             $minEval = min($curEval, $minEval);
+            $beta = min($beta, $curEval);
+            if($beta <= $alpha) {
+                break;
+            }
         }
         return $minEval;
     }
@@ -121,7 +126,7 @@ class SmartStrategy extends MoveStrategy {
         $moveEvals = [];
         foreach($this->board->adjacentMoves() as $move) {
             $this->board->makeMove($move[0], $move[1], $player);
-            $score = $this->evaluate($this->board);
+            $score = $this->evaluate();
             $this->board->undoMove($move[0], $move[1]);
 
             $moveEvals[] = ['move' => [$move[0], $move[1]], 'score' => $score];
@@ -140,7 +145,7 @@ class SmartStrategy extends MoveStrategy {
      * player has an advantage. If below 0, it means the computer has an
      * advantage.
      */
-    private function evaluate($board) {
+    private function evaluate() {
         $score = 0;
     
         for($x = 0; $x<$this->board->getSize(); $x++) {
@@ -148,23 +153,6 @@ class SmartStrategy extends MoveStrategy {
                 $score += $this->getScore($x, $y);
             }
         }
-
-        // /* Iterate over all possible rows, columns, and diagonals */
-        // for ($i = 0; $i < $board->getSize(); $i++) {
-        //     /* Evaluate rows and columns */
-        //     $score += $this->evaluateLine($board, $i, 0, 0, 1, 5); // row
-        //     $score += $this->evaluateLine($board, $i, 0, 0, 1, 6); // row
-        //     $score += $this->evaluateLine($board, 0, $i, 1, 0, 5); // column
-        //     $score += $this->evaluateLine($board, 0, $i, 1, 0, 6); // column
-        // }
-    
-        // // Evaluate diagonals
-        // for ($i = 0; $i < $board->getSize(); $i++) {
-        //     $score += $this->evaluateLine($board, $i, 0, 1, 1, 5); // diagonal from left to right
-        //     $score += $this->evaluateLine($board, $i, 0, 1, 1, 6); // diagonal from left to right
-        //     $score += $this->evaluateLine($board, $i, 0, -1, 1, 5); // diagonal from right to left
-        //     $score += $this->evaluateLine($board, $i, 0, -1, 1, 6); // diagonal from right to left
-        // }
     
         return $score;
     }
@@ -183,7 +171,7 @@ class SmartStrategy extends MoveStrategy {
         $score += $this->evaluateLine($this->board, $x, $y, 1, 1, 5);
         $score += $this->evaluateLine($this->board, $x, $y, 1, 1, 6);
 
-        /* Check diagonal right to elft */
+        /* Check diagonal right to left */
         $score += $this->evaluateLine($this->board, $x, $y, 1, -1, 5);
         $score += $this->evaluateLine($this->board, $x, $y, 1, -1, 6);
 
