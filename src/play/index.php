@@ -72,7 +72,12 @@ if ($game->isWonBy(PLAYER) || $game->isDraw()) {
 /* Otherwise, let the computer make a move and check if it won */
 $computer_move = $game->makeComputerMove();
 if($game->isWonBy(COMPUTER) || $game->isDraw()) {
-    $result = array('response' => true, 'move' => $game->json_response(COMPUTER, $computer_move[0], $computer_move[1]));
+    $result = array(
+        'response' => true,
+        'ack_move' => $game->json_response(PLAYER, $x_move, $y_move),
+        'move' => $game->json_response(COMPUTER, $computer_move[0], $computer_move[1])
+
+    );
     echo json_encode($result);
     exit;
 }
