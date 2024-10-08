@@ -66,6 +66,7 @@ if (!$game->makeMove($x_move, $y_move, PLAYER)) {
 if ($game->isWonBy(PLAYER) || $game->isDraw()) {
     $result = array('response' => true, 'ack_move' => $game->json_response(PLAYER, $x_move, $y_move));
     echo json_encode($result);
+    unlink("../writable/$pid");
     exit;
 }
 
@@ -76,9 +77,9 @@ if($game->isWonBy(COMPUTER) || $game->isDraw()) {
         'response' => true,
         'ack_move' => $game->json_response(PLAYER, $x_move, $y_move),
         'move' => $game->json_response(COMPUTER, $computer_move[0], $computer_move[1])
-
     );
     echo json_encode($result);
+    unlink("../writable/$pid");
     exit;
 }
 
