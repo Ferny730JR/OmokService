@@ -4,41 +4,44 @@ define('COMPUTER', 2);
 
 require_once "move_strategy.php";
 class SmartStrategy extends MoveStrategy {
-    private $scoreFromPosition;
+    private $hash5Score;
+    private $hash6Score;
 
     public function __construct($board) {
         $this->board = $board;
-        $this->scoreFromPosition = [
-            '11111' => 30000000,
-            '22222'=> -30000000,
-            '011110'=> 20000000,
-            '022220'=> -20000000,
-            '011112'=> 50000,
-            '211110'=> 50000,
-            '022221'=> -50000,
-            '122220'=> -50000,
-            '01110'=> 30000,
-            '02220'=> -30000,
-            '011010'=> 15000,
-            '010110'=> 15000,
-            '022020'=> -15000,
-            '020220'=> -15000,
-            '001112'=> 2000,
-            '211100'=> 2000,
-            '002221'=> -2000,
-            '122200'=> -2000,
-            '211010'=> 2000,
-            '210110'=> 2000,
-            '010112'=> 2000,
-            '011012'=> 2000,
-            '122020'=> -2000,
-            '120220'=> -2000,
-            '020221'=> -2000,
-            '022021'=> -2000,
-            '01100'=> 500,
-            '00110'=> 500,
-            '02200'=> -500,
-            '00220'=> -500
+        $this->hash5Score = [
+            341 =>  50000000, // 11111
+            682 => -50000000, // 22222
+            84  =>     30000, // 01110
+            168 =>    -30000, // 02220
+            80  =>       500, // 01100
+            20  =>       500, // 00110
+            160 =>      -500, // 02200
+            40  =>      -500  // 00220
+        ];
+        $this->hash6Score = [
+            340  =>  20000000, // 011110
+            680  => -20000000, // 022220
+            342  =>     50000, // 011112
+            2388 =>     50000, // 211110
+            681  =>    -50000, // 022221
+            1704 =>    -50000, // 122220
+            324  =>     15000, // 011010
+            276  =>     15000, // 010110
+            648  =>    -15000, // 022020
+            552  =>    -15000, // 020220
+             86  =>      2000, // 001112
+            2384 =>      2000, // 211100
+            169  =>     -2000, // 002221
+            1696 =>     -2000, // 122200
+            2372 =>      2000, // 211010
+            2324 =>      2000, // 210110
+            278  =>      2000, // 010112
+            326  =>      2000, // 011012
+            1672 =>     -2000, // 122020
+            1576 =>     -2000, // 120220
+            553  =>     -2000, // 020221
+            649  =>     -2000  // 022021
         ];
     }
 
@@ -59,7 +62,7 @@ class SmartStrategy extends MoveStrategy {
         $bestEval = PHP_INT_MAX;
 
         /* Iterate over moves to be made */
-        foreach($this->board->adjacentMoves() as $move) {
+        foreach($this->bestMoves(PLAYER) as $move) {
 
             /* Make the move and calculate the weight of the move */
             $this->board->makeMove($move[0], $move[1], COMPUTER);
@@ -71,6 +74,7 @@ class SmartStrategy extends MoveStrategy {
                 $bestMove = [$move[0], $move[1]];
                 $bestEval = $moveEval;
             }
+            // echo nl2br("Move ($move[0], $move[1]) = $moveEval\n");
         }
 
         $this->board->makeMove($bestMove[0], $bestMove[1], COMPUTER);
@@ -78,8 +82,8 @@ class SmartStrategy extends MoveStrategy {
     }
 
     private function minimax($board, $depth, $alpha, $beta, $player) {
-        if($depth === 0 || $board->isFull()){ //|| $eval >= 29000000 || $eval <= -29000000) {
-            $eval = $this->evaluate();
+        $eval = $this->evaluate();
+        if($depth === 0 || $board->isFull() || $eval >= 29000000 || $eval <= -29000000) {
             return $eval;
         }
 
@@ -147,63 +151,96 @@ class SmartStrategy extends MoveStrategy {
      */
     private function evaluate() {
         $score = 0;
-    
+
+        /* Check horizontal. Origin (0,0) is at the top left of board */
+        for($y=0; $y<$this->board->getSize(); $y++) {
+            $hash_value = 0;
+            for($x=0; $x<$this->board->getSize(); $x++) {
+                $hash_value = (($hash_value << 2) | $this->board->getPlayer($x,$y)) & 0xfff;
+                if($x>4 && array_key_exists($hash_value, $this->hash6Score)) {
+                    $score += $this->hash6Score[$hash_value];
+                }
+                $hash_value &= 0x3ff;
+                if($x>3 && array_key_exists($hash_value, $this->hash5Score)) {
+                    $score += $this->hash5Score[$hash_value];
+                }
+            }
+        }
+
+        /* Check vertical. Origin (0,0) is at top left of board */
         for($x = 0; $x<$this->board->getSize(); $x++) {
+            $hash_value = 0;
             for($y=0; $y<$this->board->getSize(); $y++) {
-                $score += $this->getScore($x, $y);
+                $hash_value = (($hash_value << 2) | $this->board->getPlayer($x,$y)) & 0xfff;
+                if($y>4 && array_key_exists($hash_value, $this->hash6Score)) {
+                    $score += $this->hash6Score[$hash_value];
+                }
+                $hash_value &= 0x3ff;
+                if($y>3 && array_key_exists($hash_value, $this->hash5Score)) {
+                    $score += $this->hash5Score[$hash_value];
+                }
+            }
+        }
+
+        /* Check diagonal left to right, beginning at top left of board */
+        for($x=0; $x<$this->board->getSize(); $x++) {
+            $hash_value = 0;
+            for($y=0; $y<=$x; $y++) {
+                $i = $x-$y;
+                $hash_value = (($hash_value << 2) | $this->board->getPlayer($i, $y)) & 0xfff;
+                if($y>4 && array_key_exists($hash_value, $this->hash6Score)) {
+                    $score += $this->hash6Score[$hash_value];
+                }
+                $hash_value &= 0x3ff;
+                if($y>3 && array_key_exists($hash_value, $this->hash5Score)) {
+                    $score += $this->hash5Score[$hash_value];
+                }
+            }
+        }
+        for($x=0; $x<$this->board->getSize()-2; $x++) {
+            $hash_value = 0;
+            for($y=0; $y<=$x; $y++) {
+                $i = $x - $y;
+                $hash_value = (($hash_value << 2) | $this->board->getPlayer($this->board->getSize()-$y-1, $this->board->getSize()-$i-1)) & 0xfff;
+                if($y>4 && array_key_exists($hash_value, $this->hash6Score)) {
+                    $score += $this->hash6Score[$hash_value];
+                }
+                $hash_value &= 0x3ff;
+                if($y>3 && array_key_exists($hash_value, $this->hash5Score)) {
+                    $score += $this->hash5Score[$hash_value];
+                }
+            }
+        }
+
+        /* Check diagonals right to left, beginning at the bottom left of the board */
+        for($i = $this->board->getSize()-1; $i > 0; $i--) {
+            $hash_value = 0;
+            for($y = 0, $x=$i; $x <= $this->board->getSize()-1; $y++, $x++) {
+                $hash_value = (($hash_value << 2) | $this->board->getPlayer($x, $y)) & 0xfff;
+                if($y>4 && array_key_exists($hash_value, $this->hash6Score)) {
+                    $score += $this->hash6Score[$hash_value];
+                }
+                $hash_value &= 0x3ff;
+                if($y>3 && array_key_exists($hash_value, $this->hash5Score)) {
+                    $score += $this->hash5Score[$hash_value];
+                }
+            }
+        }
+        for($i=0; $i<$this->board->getSize(); $i++) {
+            $hash_value = 0;
+            for($x=0, $y=$i; $y < $this->board->getSize(); $x++, $y++) {
+                $hash_value = (($hash_value << 2) | $this->board->getPlayer($x, $y)) & 0xfff;
+                if($x>4 && array_key_exists($hash_value, $this->hash6Score)) {
+                    $score += $this->hash6Score[$hash_value];
+                }
+                $hash_value &= 0x3ff;
+                if($x>3 && array_key_exists($hash_value, $this->hash5Score)) {
+                    $score += $this->hash5Score[$hash_value];
+                }
             }
         }
     
         return $score;
     }
-
-    private function getScore($x, $y) {
-        $score = 0;
-        /* Check horizontal */
-        $score += $this->evaluateLine($this->board, $x, $y, 0, 1, 5);
-        $score += $this->evaluateLine($this->board, $x, $y, 0, 1, 6);
-
-        /* Check vertical */
-        $score += $this->evaluateLine($this->board, $x, $y, 1, 0, 5);
-        $score += $this->evaluateLine($this->board, $x, $y, 1, 0, 6);
-
-        /* Check diagonal left to right */
-        $score += $this->evaluateLine($this->board, $x, $y, 1, 1, 5);
-        $score += $this->evaluateLine($this->board, $x, $y, 1, 1, 6);
-
-        /* Check diagonal right to left */
-        $score += $this->evaluateLine($this->board, $x, $y, 1, -1, 5);
-        $score += $this->evaluateLine($this->board, $x, $y, 1, -1, 6);
-
-        return $score;
-    }
-    
-    private function evaluateLine($board, $startX, $startY, $deltaX, $deltaY, $length) {    
-        $line = "";
-        for ($i = 0; $i < $length; $i++) {
-            $x = $startX + $i * $deltaX;
-            $y = $startY + $i * $deltaY;
-    
-            if (!$board->isWithinBounds($x, $y)) {
-                break; // Out of bounds
-            }
-    
-            $player = $board->getPlayer($x, $y);
-    
-            if ($player == PLAYER) {
-                $line = $line . "1";
-            } elseif ($player == COMPUTER) {
-                $line = $line . "2";
-            } else {
-                $line = $line . "0";
-            }
-        }
-    
-        if(array_key_exists($line, $this->scoreFromPosition))
-            return $this->scoreFromPosition[$line];
-        else return 0;
-    }
-    
 }
-
 ?>
