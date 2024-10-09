@@ -70,7 +70,7 @@ class SmartStrategy extends MoveStrategy {
             $this->board->undoMove($move[0], $move[1]);
 
             /* Computer, so try to minimize the evaluation */
-            if($moveEval <= $bestEval) {
+            if($moveEval < $bestEval) {
                 $bestMove = [$move[0], $move[1]];
                 $bestEval = $moveEval;
             }
